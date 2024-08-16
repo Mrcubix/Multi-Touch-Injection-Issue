@@ -1,0 +1,11 @@
+CreateSyntheticPointerDevice
+InjectSyntheticPointerInput
+DestroySyntheticPointerDevice
+InitializeTouchInjection
+InjectTouchInput
+GetForegroundWindow
+TOUCH_FLAG_NONE
+TOUCH_MASK_NONE
+TOUCH_MASK_CONTACTAREA
+TOUCH_MASK_ORIENTATION
+TOUCH_MASK_PRESSURE
