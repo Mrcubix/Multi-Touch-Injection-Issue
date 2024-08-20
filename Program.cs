@@ -13,9 +13,11 @@ namespace MultiTouch.Core;
 [SupportedOSPlatform("windows8.0")]
 class Program
 {
+    private static readonly HWND _sourceDevice = HWND.Null; 
+
     static void Main()
     {
-        if (PInvoke.InitializeTouchInjection(1, TOUCH_FEEDBACK_MODE.TOUCH_FEEDBACK_INDIRECT) == false)
+        if (PInvoke.InitializeTouchInjection(1, TOUCH_FEEDBACK_MODE.TOUCH_FEEDBACK_NONE) == false)
             throw new Win32Exception($"Failed to initialize touch injection: {Marshal.GetLastWin32Error()}");
 
         Console.WriteLine("Touch injection initialized");
@@ -41,20 +43,28 @@ class Program
             var info = new POINTER_INFO
             {
                 pointerType = POINTER_INPUT_TYPE.PT_TOUCH,
-                pointerId = i + 1,
-                pointerFlags = POINTER_FLAGS.POINTER_FLAG_UP,
-                ptPixelLocationRaw = new Point(0, 0),
-                ptHimetricLocationRaw = new Point(0, 0),
+                frameId = 0,
+                pointerId = i,
+                pointerFlags = POINTER_FLAGS.POINTER_FLAG_INRANGE | POINTER_FLAGS.POINTER_FLAG_INCONTACT | POINTER_FLAGS.POINTER_FLAG_DOWN,
+                sourceDevice = _sourceDevice,
+                ptPixelLocation = new Point(640, 480),
+                ptPixelLocationRaw = new Point(640, 480),
+                dwTime = 0,
+                historyCount = 0,
+                dwKeyStates = 0,
+                PerformanceCount = 0,
+                ButtonChangeType = POINTER_BUTTON_CHANGE_TYPE.POINTER_CHANGE_NONE
             };
 
             pointers[i] = new POINTER_TOUCH_INFO
             {
                 pointerInfo = info,
                 touchFlags = PInvoke.TOUCH_FLAG_NONE,
-                touchMask = PInvoke.TOUCH_MASK_PRESSURE, // The device i plan to use it on does not provide contact area information
+                touchMask = PInvoke.TOUCH_MASK_CONTACTAREA | PInvoke.TOUCH_MASK_ORIENTATION | PInvoke.TOUCH_MASK_PRESSURE, // The device i plan to use it on does not provide contact area information
+                orientation = 90,
                 pressure = 512,
-                rcContact = RECT.FromXYWH(0, 0, 2, 2),
-                rcContactRaw = RECT.FromXYWH(0, 0, 2, 2),
+                rcContact = RECT.FromXYWH(640 - 2, 480 + 2, 2, 2),
+                rcContactRaw = RECT.FromXYWH(640 - 2, 480 + 2, 2, 2),
             };
         }
 

@@ -7,7 +7,7 @@ namespace MultiTouch.Core.Extensions;
 
 internal static class POINTER_TYPE_INFO_Extensions
 {
-    internal static void Move(this POINTER_TYPE_INFO pointer, int x, int y)
+    internal static void Move(this ref POINTER_TYPE_INFO pointer, int x, int y)
     {
         //var touchInfo = pointer.Anonymous.touchInfo;
 
@@ -18,12 +18,12 @@ internal static class POINTER_TYPE_INFO_Extensions
         pointer.Anonymous.touchInfo.rcContactRaw = pointer.Anonymous.touchInfo.rcContact;
     }
 
-    internal static void SetPointerFlags(this POINTER_TYPE_INFO pointer, POINTER_FLAGS flags)
+    internal static void SetPointerFlags(this ref POINTER_TYPE_INFO pointer, POINTER_FLAGS flags)
     {
         pointer.Anonymous.touchInfo.pointerInfo.pointerFlags |= flags;
     }
 
-    internal static void UnsetPointerFlags(this POINTER_TYPE_INFO pointer, POINTER_FLAGS flags)
+    internal static void UnsetPointerFlags(this ref POINTER_TYPE_INFO pointer, POINTER_FLAGS flags)
     {
         pointer.Anonymous.touchInfo.pointerInfo.pointerFlags &= ~flags;
     }
