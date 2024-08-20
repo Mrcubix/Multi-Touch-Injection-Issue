@@ -1,7 +1,10 @@
 ﻿using System.ComponentModel;
+using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using MultiTouch.Core.Extensions;
 using Windows.Win32;
+using Windows.Win32.Foundation;
 using Windows.Win32.UI.Controls;
 using Windows.Win32.UI.Input.Pointer;
 using Windows.Win32.UI.WindowsAndMessaging;
@@ -11,34 +14,35 @@ namespace MultiTouch.Core;
 [SupportedOSPlatform("windows10.0.17763")]
 unsafe class Program
 {
+    private static readonly HWND _sourceDevice = HWND.Null; 
+    private const uint TOUCH_COUNT = 2;
+
     static void Main()
     {
-        var device = PInvoke.CreateSyntheticPointerDevice(POINTER_INPUT_TYPE.PT_TOUCH, 1, POINTER_FEEDBACK_MODE.POINTER_FEEDBACK_INDIRECT);
+        var device = PInvoke.CreateSyntheticPointerDevice(POINTER_INPUT_TYPE.PT_TOUCH, TOUCH_COUNT, POINTER_FEEDBACK_MODE.POINTER_FEEDBACK_INDIRECT);
 
         if (device.IsNull)
-            throw new Win32Exception("Failed to create synthetic pointer device");
+            throw new Win32Exception($"Failed to create synthetic pointer device : {Marshal.GetLastWin32Error()}");
             
         Console.WriteLine("Synthetic Device Initialized");
 
-        var pointers = BuildTouchInfo(1);
+        var pointers = BuildTouchInfo(TOUCH_COUNT);
         SetTarget(pointers);
 
         fixed (POINTER_TYPE_INFO* pPointers = pointers)
             if (PInvoke.InjectSyntheticPointerInput(device, pPointers, (uint)pointers.Length) == false)
-                throw new Win32Exception("Failed to inject synthetic pointer input");
+                throw new Win32Exception($"Failed to inject synthetic pointer input : {Marshal.GetLastWin32Error()}");
 
         StartTouch(device, pointers);
         SetOrigin(device, pointers);
-        StartMovingUp(device, pointers, 500);
-
-        Thread.Sleep(5000);
+        StartMovingDown(device, pointers, 500);
 
         ReleaseTouch(device, pointers);
 
         PInvoke.DestroySyntheticPointerDevice(device);
     }
 
-    static POINTER_TYPE_INFO[] BuildTouchInfo(int touchCount)
+    static POINTER_TYPE_INFO[] BuildTouchInfo(uint touchCount)
     {
         var pointers = new POINTER_TYPE_INFO[touchCount];
 
@@ -47,8 +51,17 @@ unsafe class Program
             var info = new POINTER_INFO
             {
                 pointerType = POINTER_INPUT_TYPE.PT_TOUCH,
-                pointerId = i,
-                pointerFlags = POINTER_FLAGS.POINTER_FLAG_UP
+                frameId = 0,
+                pointerId = i + 1,
+                pointerFlags = POINTER_FLAGS.POINTER_FLAG_NONE,
+                sourceDevice = _sourceDevice,
+                ptPixelLocation = new Point(0, 0),
+                ptPixelLocationRaw = new Point(0, 0),
+                dwTime = 0,
+                historyCount = 0,
+                dwKeyStates = 0,
+                PerformanceCount = 0,
+                ButtonChangeType = POINTER_BUTTON_CHANGE_TYPE.POINTER_CHANGE_NONE
             };
 
             var pointer = new POINTER_TOUCH_INFO
@@ -79,49 +92,58 @@ unsafe class Program
 
     static void StartTouch(HSYNTHETICPOINTERDEVICE device, POINTER_TYPE_INFO[] pointers)
     {
-        // A finger is down
-        pointers[0].UnsetPointerFlags(POINTER_FLAGS.POINTER_FLAG_UP | POINTER_FLAGS.POINTER_FLAG_UPDATE);
-        pointers[0].SetPointerFlags(POINTER_FLAGS.POINTER_FLAG_INRANGE | POINTER_FLAGS.POINTER_FLAG_INCONTACT | POINTER_FLAGS.POINTER_FLAG_DOWN);
-        pointers[0].Anonymous.touchInfo.pressure = 1;
+        for (int i = 0; i < pointers.Length; i++)
+        {
+            // A finger is down
+            pointers[i].UnsetPointerFlags(POINTER_FLAGS.POINTER_FLAG_UP | POINTER_FLAGS.POINTER_FLAG_UPDATE);
+            pointers[i].SetPointerFlags(POINTER_FLAGS.POINTER_FLAG_INRANGE | POINTER_FLAGS.POINTER_FLAG_INCONTACT | POINTER_FLAGS.POINTER_FLAG_DOWN);
+
+            // 2 displays, this will set it to move on the middle of my second display
+            pointers[i].Move(2879 + (i * 30), 540);
+            pointers[i].Anonymous.touchInfo.pressure = 1;
+        }
 
         fixed (POINTER_TYPE_INFO* pPointers = pointers)
             if (PInvoke.InjectSyntheticPointerInput(device, pPointers, (uint)pointers.Length) == false)
-                throw new Win32Exception("Failed to inject down touch input");
+                throw new Win32Exception($"Failed to inject down touch input : {Marshal.GetLastWin32Error()}");
 
         Console.WriteLine("Touch Started");
     }
 
     static void SetOrigin(HSYNTHETICPOINTERDEVICE device, POINTER_TYPE_INFO[] pointers)
     {
-        // Since the cursor will be moving, this will be an update
-        pointers[0].SetPointerFlags(POINTER_FLAGS.POINTER_FLAG_UPDATE);
-        // 2 displays, this will set it to moveo n the middle of my second display
-        pointers[0].Move(957, 1077);
+        for (int i = 0; i < pointers.Length; i++)
+        {
+            // Since the cursor will be moving, this will be an update
+            pointers[i].SetPointerFlags(POINTER_FLAGS.POINTER_FLAG_UPDATE);
+        }
 
         fixed (POINTER_TYPE_INFO* pPointers = pointers)
             if (PInvoke.InjectSyntheticPointerInput(device, pPointers, (uint)pointers.Length) == false)
-                throw new Win32Exception("Failed to inject set original position touch input");
+                throw new Win32Exception($"Failed to inject set original position touch input : {Marshal.GetLastWin32Error()}");
 
         Console.WriteLine("Set Origin");
     }
 
-    static void StartMovingUp(HSYNTHETICPOINTERDEVICE device, POINTER_TYPE_INFO[] pointers, int pixels)
+    static void StartMovingDown(HSYNTHETICPOINTERDEVICE device, POINTER_TYPE_INFO[] pointers, int pixels)
     {
-        var y = 1077;
-        var stepPixels = pixels / 10;
+        var y = 540;
+        var steps = 50;
+        var stepPixels = pixels / steps;
 
         // Move 10 pixels up every 100ms (from 1080 to 1080 - pixels) in 10 steps
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < steps; i++)
         {
-            Thread.Sleep(100);
+            Thread.Sleep(50);
 
-            y -= stepPixels;
+            y += stepPixels;
 
-            pointers[0].Move(957, y);
+            for (int j = 0; j < pointers.Length; j++)
+                pointers[j].Move(2879 + (j * 30), y);
 
             fixed (POINTER_TYPE_INFO* pPointers = pointers)
                 if (PInvoke.InjectSyntheticPointerInput(device, pPointers, (uint)pointers.Length) == false)
-                    throw new Win32Exception("Failed to inject moving touch input");
+                    throw new Win32Exception($"Failed to inject moving touch input : {Marshal.GetLastWin32Error()}");
 
             Console.WriteLine("Moving Up to {0}", y);
         }
@@ -131,13 +153,16 @@ unsafe class Program
 
     static void ReleaseTouch(HSYNTHETICPOINTERDEVICE device, POINTER_TYPE_INFO[] pointers)
     {
-        // A finger is up
-        pointers[0].UnsetPointerFlags(POINTER_FLAGS.POINTER_FLAG_INRANGE | POINTER_FLAGS.POINTER_FLAG_INCONTACT | POINTER_FLAGS.POINTER_FLAG_DOWN);
-        pointers[0].SetPointerFlags(POINTER_FLAGS.POINTER_FLAG_UP);
+        for (int i = 0; i < pointers.Length; i++)
+        {
+            // A finger is up
+            pointers[0].UnsetPointerFlags(POINTER_FLAGS.POINTER_FLAG_INRANGE | POINTER_FLAGS.POINTER_FLAG_INCONTACT | POINTER_FLAGS.POINTER_FLAG_DOWN);
+            pointers[0].SetPointerFlags(POINTER_FLAGS.POINTER_FLAG_UP);
+        }
 
         fixed (POINTER_TYPE_INFO* pPointers = pointers)
             if (PInvoke.InjectSyntheticPointerInput(device, pPointers, (uint)pointers.Length) == false)
-                throw new Win32Exception("Failed to inject up touch input");
+                throw new Win32Exception($"Failed to inject up touch input : {Marshal.GetLastWin32Error()}");
 
         Console.WriteLine("Touch Released");
     }
